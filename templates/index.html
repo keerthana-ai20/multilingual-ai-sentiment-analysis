@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>AI Sentiment Analysis Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+
+        body{
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            color:white;
+            padding:40px;
+        }
+
+        .container{
+            max-width:900px;
+            margin:auto;
+            background:#1e1e1e;
+            padding:35px;
+            border-radius:20px;
+            box-shadow:0 0 25px rgba(0,0,0,0.4);
+        }
+
+        h1{
+            text-align:center;
+            margin-bottom:30px;
+        }
+
+        textarea{
+            width:100%;
+            height:140px;
+            padding:15px;
+            font-size:17px;
+            border-radius:12px;
+            border:none;
+            outline:none;
+            resize:none;
+            background:#2a2a2a;
+            color:white;
+        }
+
+        button{
+            margin-top:20px;
+            padding:14px 28px;
+            border:none;
+            background:#00adb5;
+            color:white;
+            font-size:17px;
+            border-radius:10px;
+            cursor:pointer;
+        }
+
+        button:hover{
+            background:#00cfd5;
+        }
+
+        #result{
+            margin-top:30px;
+            text-align:center;
+            background:#2b2b2b;
+            padding:25px;
+            border-radius:15px;
+        }
+
+        .emoji{
+            font-size:80px;
+        }
+
+        .sentiment-text{
+            font-size:32px;
+            margin-top:10px;
+        }
+
+        .confidence-text{
+            font-size:24px;
+            margin-top:15px;
+        }
+
+        canvas{
+            margin-top:40px;
+            background:white;
+            border-radius:15px;
+            padding:15px;
+        }
+
+        .wordcloud-section{
+            margin-top:50px;
+        }
+
+        .wordcloud-title{
+            text-align:center;
+            margin-bottom:20px;
+            font-size:28px;
+        }
+
+        #wordcloud{
+            width:100%;
+            border-radius:15px;
+            background:white;
+            padding:10px;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>AI Customer Feedback Sentiment Analysis</h1>
+
+    <textarea
+        id="feedback"
+        placeholder="Enter customer feedback..."></textarea>
+
+    <br>
+
+    <button onclick="analyzeSentiment()">
+        Analyze Sentiment
+    </button>
+
+    <div id="result">
+
+        <div class="emoji">🤖</div>
+
+        <div class="sentiment-text">
+            Waiting for analysis...
+        </div>
+
+    </div>
+
+    <canvas id="chart"></canvas>
+
+    <div class="wordcloud-section">
+
+        <div class="wordcloud-title">
+            Word Cloud Visualization
+        </div>
+
+        <img
+            id="wordcloud"
+            src=""
+            alt="Word Cloud">
+
+    </div>
+
+</div>
+
+<script>
+
+const ctx = document.getElementById('chart');
+
+const chart = new Chart(ctx, {
+
+    type: 'bar',
+
+    data: {
+
+        labels: ['Positive', 'Negative', 'Neutral'],
+
+        datasets: [{
+
+            label: 'Sentiment Count',
+
+            data: [0, 0, 0],
+
+            backgroundColor: [
+                '#4CAF50',
+                '#F44336',
+                '#FFC107'
+            ]
+        }]
+    },
+
+    options: {
+
+        responsive: true,
+
+        scales: {
+
+            y: {
+
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+async function analyzeSentiment(){
+
+    const feedback =
+        document.getElementById("feedback").value;
+
+    if(feedback.trim() === ""){
+
+        alert("Please enter customer feedback.");
+
+        return;
+    }
+
+    document.getElementById("result").innerHTML =
+
+    `
+    <div class="emoji">⏳</div>
+
+    <div class="sentiment-text">
+        Analyzing...
+    </div>
+    `;
+
+    const formData = new FormData();
+
+    formData.append("feedback", feedback);
+
+    try {
+
+        const response = await fetch("/predict", {
+
+            method: "POST",
+
+            body: formData
+        });
+
+        const data = await response.json();
+
+        let emoji = "";
+
+        if(data.sentiment === "positive"){
+
+            emoji = "😊";
+        }
+
+        else if(data.sentiment === "negative"){
+
+            emoji = "😠";
+        }
+
+        else{
+
+            emoji = "😐";
+        }
+
+        document.getElementById("result").innerHTML =
+
+        `
+        <div class="emoji">
+            ${emoji}
+        </div>
+
+        <div class="sentiment-text">
+            ${data.sentiment.toUpperCase()}
+        </div>
+
+        <div class="confidence-text">
+            Confidence Score:
+            <b>${data.confidence}%</b>
+        </div>
+        `;
+
+        chart.data.datasets[0].data = [
+
+            data.positive,
+            data.negative,
+            data.neutral
+        ];
+
+        chart.update();
+
+        document.getElementById("wordcloud").src =
+
+            data.wordcloud +
+            "?t=" +
+            new Date().getTime();
+
+    }
+
+    catch(error){
+
+        console.log(error);
+
+        document.getElementById("result").innerHTML =
+
+        `
+        <div class="emoji">⚠️</div>
+
+        <div class="sentiment-text">
+            Error occurred
+        </div>
+        `;
+    }
+}
+
+</script>
+
+</body>
+</html>
