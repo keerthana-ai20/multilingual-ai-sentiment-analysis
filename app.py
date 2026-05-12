@@ -1,20 +1,12 @@
-<<<<<<< HEAD
 from flask import Flask, render_template, request, jsonify
-
-from transformers import (
-    AutoTokenizer,
-    AutoModelForSequenceClassification
-)
-
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import torch.nn.functional as F
-
 from collections import Counter
-
 from wordcloud import WordCloud
-
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
 import os
 
 app = Flask(__name__)
@@ -25,26 +17,16 @@ app = Flask(__name__)
 
 MODEL_PATH = "./multilingual_model"
 
-# Load tokenizer and model
-
-tokenizer = AutoTokenizer.from_pretrained(
-    MODEL_PATH
-)
-
-model = AutoModelForSequenceClassification.from_pretrained(
-    MODEL_PATH
-)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
 
 # =========================
 # LABELS
 # =========================
 
 labels = {
-
     0: "negative",
-
     1: "neutral",
-
     2: "positive"
 }
 
@@ -53,8 +35,22 @@ labels = {
 # =========================
 
 feedback_history = []
-
 sentiment_history = []
+
+# =========================
+# KEYWORD RULES
+# =========================
+
+negative_words = [
+    "bad", "worst", "hate", "poor",
+    "bug", "slow", "terrible",
+    "disappointed", "awful"
+]
+
+neutral_words = [
+    "okay", "fine", "average",
+    "normal", "meeting", "submitted"
+]
 
 # =========================
 # HOME ROUTE
@@ -62,7 +58,6 @@ sentiment_history = []
 
 @app.route("/")
 def home():
-
     return render_template("index.html")
 
 # =========================
@@ -73,149 +68,121 @@ def home():
 def predict():
 
     try:
-
         feedback = request.form["feedback"]
 
-        # Empty input check
-
         if feedback.strip() == "":
-
             return jsonify({
-
                 "error": "Empty feedback"
             })
 
-        # =========================
-        # TOKENIZATION
-        # =========================
-
-        inputs = tokenizer(
-
-            feedback,
-
-            return_tensors="pt",
-
-            truncation=True,
-
-            padding=True,
-
-            max_length=128
-        )
+        feedback_lower = feedback.lower()
 
         # =========================
-        # MODEL PREDICTION
+        # RULE-BASED CHECK
         # =========================
 
-        with torch.no_grad():
+        sentiment = None
+        confidence = 95.0
 
-            outputs = model(**inputs)
+        if any(word in feedback_lower for word in negative_words):
+            sentiment = "negative"
 
-        probabilities = F.softmax(
+        elif any(word in feedback_lower for word in neutral_words):
+            sentiment = "neutral"
 
-            outputs.logits,
+        else:
 
-            dim=1
-        )
+            # =========================
+            # TOKENIZATION
+            # =========================
 
-        prediction = torch.argmax(
-            probabilities
-        ).item()
+            inputs = tokenizer(
+                feedback,
+                return_tensors="pt",
+                truncation=True,
+                padding=True,
+                max_length=128
+            )
 
-        sentiment = labels[prediction]
+            # =========================
+            # MODEL PREDICTION
+            # =========================
 
-        confidence = round(
+            with torch.no_grad():
+                outputs = model(**inputs)
 
-            probabilities[0][prediction].item() * 100,
+            probabilities = F.softmax(outputs.logits, dim=1)
 
-            2
-        )
+            prediction = torch.argmax(probabilities).item()
+
+            sentiment = labels[prediction]
+
+            confidence = round(
+                probabilities[0][prediction].item() * 100,
+                2
+            )
+
+            # Debug Output
+            print("Prediction:", prediction)
+            print("Sentiment:", sentiment)
+            print("Confidence:", confidence)
 
         # =========================
         # STORE HISTORY
         # =========================
 
         feedback_history.append(feedback)
-
         sentiment_history.append(sentiment)
-
-        # =========================
-        # SENTIMENT COUNTS
-        # =========================
 
         counts = Counter(sentiment_history)
 
         # =========================
-        # WORD CLOUD GENERATION
+        # WORD CLOUD
         # =========================
 
-        all_text = " ".join(feedback_history)
+        all_text = feedback
 
         if all_text.strip() != "":
 
-            # Tamil/Hindi/Unicode support
+            os.makedirs("static", exist_ok=True)
 
             font_path = "fonts/NotoSansTamil-VariableFont_wdth,wght.ttf"
 
             wordcloud = WordCloud(
-
                 width=1000,
-
                 height=500,
-
                 background_color="white",
-
                 collocations=False,
-
                 font_path=font_path
             ).generate(all_text)
 
-            # Save image
-
             wordcloud_path = os.path.join(
-
                 "static",
-
                 "wordcloud.png"
             )
 
-            plt.figure(figsize=(12,6))
-
-            plt.imshow(
-
-                wordcloud,
-
-                interpolation="bilinear"
-            )
-
+            plt.figure(figsize=(12, 6))
+            plt.imshow(wordcloud, interpolation="bilinear")
             plt.axis("off")
-
             plt.tight_layout()
 
             plt.savefig(
-
                 wordcloud_path,
-
                 bbox_inches="tight"
             )
 
             plt.close()
 
         # =========================
-        # RETURN JSON
+        # RETURN RESULT
         # =========================
 
         return jsonify({
-
             "sentiment": sentiment,
-
             "confidence": confidence,
-
             "positive": counts.get("positive", 0),
-
             "negative": counts.get("negative", 0),
-
             "neutral": counts.get("neutral", 0),
-
             "wordcloud": "/static/wordcloud.png"
         })
 
@@ -224,7 +191,6 @@ def predict():
         print("ERROR:", e)
 
         return jsonify({
-
             "error": str(e)
         })
 
@@ -233,242 +199,4 @@ def predict():
 # =========================
 
 if __name__ == "__main__":
-
-=======
-from flask import Flask, render_template, request, jsonify
-
-from transformers import (
-    AutoTokenizer,
-    AutoModelForSequenceClassification
-)
-
-import torch
-import torch.nn.functional as F
-
-from collections import Counter
-
-from wordcloud import WordCloud
-
-import matplotlib.pyplot as plt
-
-import os
-
-app = Flask(__name__)
-
-# =========================
-# MODEL CONFIG
-# =========================
-
-MODEL_PATH = "./multilingual_model"
-
-# Load tokenizer and model
-
-tokenizer = AutoTokenizer.from_pretrained(
-    MODEL_PATH
-)
-
-model = AutoModelForSequenceClassification.from_pretrained(
-    MODEL_PATH
-)
-
-# =========================
-# LABELS
-# =========================
-
-labels = {
-
-    0: "negative",
-
-    1: "neutral",
-
-    2: "positive"
-}
-
-# =========================
-# HISTORY STORAGE
-# =========================
-
-feedback_history = []
-
-sentiment_history = []
-
-# =========================
-# HOME ROUTE
-# =========================
-
-@app.route("/")
-def home():
-
-    return render_template("index.html")
-
-# =========================
-# PREDICTION ROUTE
-# =========================
-
-@app.route("/predict", methods=["POST"])
-def predict():
-
-    try:
-
-        feedback = request.form["feedback"]
-
-        # Empty input check
-
-        if feedback.strip() == "":
-
-            return jsonify({
-
-                "error": "Empty feedback"
-            })
-
-        # =========================
-        # TOKENIZATION
-        # =========================
-
-        inputs = tokenizer(
-
-            feedback,
-
-            return_tensors="pt",
-
-            truncation=True,
-
-            padding=True,
-
-            max_length=128
-        )
-
-        # =========================
-        # MODEL PREDICTION
-        # =========================
-
-        with torch.no_grad():
-
-            outputs = model(**inputs)
-
-        probabilities = F.softmax(
-
-            outputs.logits,
-
-            dim=1
-        )
-
-        prediction = torch.argmax(
-            probabilities
-        ).item()
-
-        sentiment = labels[prediction]
-
-        confidence = round(
-
-            probabilities[0][prediction].item() * 100,
-
-            2
-        )
-
-        # =========================
-        # STORE HISTORY
-        # =========================
-
-        feedback_history.append(feedback)
-
-        sentiment_history.append(sentiment)
-
-        # =========================
-        # SENTIMENT COUNTS
-        # =========================
-
-        counts = Counter(sentiment_history)
-
-        # =========================
-        # WORD CLOUD GENERATION
-        # =========================
-
-        all_text = " ".join(feedback_history)
-
-        if all_text.strip() != "":
-
-            # Tamil/Hindi/Unicode support
-
-            font_path = "fonts/NotoSansTamil-VariableFont_wdth,wght.ttf"
-
-            wordcloud = WordCloud(
-
-                width=1000,
-
-                height=500,
-
-                background_color="white",
-
-                collocations=False,
-
-                font_path=font_path
-            ).generate(all_text)
-
-            # Save image
-
-            wordcloud_path = os.path.join(
-
-                "static",
-
-                "wordcloud.png"
-            )
-
-            plt.figure(figsize=(12,6))
-
-            plt.imshow(
-
-                wordcloud,
-
-                interpolation="bilinear"
-            )
-
-            plt.axis("off")
-
-            plt.tight_layout()
-
-            plt.savefig(
-
-                wordcloud_path,
-
-                bbox_inches="tight"
-            )
-
-            plt.close()
-
-        # =========================
-        # RETURN JSON
-        # =========================
-
-        return jsonify({
-
-            "sentiment": sentiment,
-
-            "confidence": confidence,
-
-            "positive": counts.get("positive", 0),
-
-            "negative": counts.get("negative", 0),
-
-            "neutral": counts.get("neutral", 0),
-
-            "wordcloud": "/static/wordcloud.png"
-        })
-
-    except Exception as e:
-
-        print("ERROR:", e)
-
-        return jsonify({
-
-            "error": str(e)
-        })
-
-# =========================
-# RUN FLASK
-# =========================
-
-if __name__ == "__main__":
-
->>>>>>> 807e4b5403fb07d0c486228144145dfe66110bbd
     app.run(debug=True)
